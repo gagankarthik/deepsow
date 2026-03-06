@@ -4,6 +4,7 @@ from ..models.document import Document
 from ..models.analysis import Analysis
 from ..models.issue import Issue
 from ..models.task import Task
+from ..models.sow_data import SOWExtractedData
 
 
 class StorageService:
@@ -14,6 +15,7 @@ class StorageService:
         self._analyses: dict[str, Analysis] = {}
         self._issues: dict[str, Issue] = {}
         self._tasks: dict[str, Task] = {}
+        self._sow_data: dict[str, SOWExtractedData] = {}
 
     # Document operations
     def save_document(self, document: Document) -> Document:
@@ -202,6 +204,85 @@ class StorageService:
                 value = value.value
             counts[value] = counts.get(value, 0) + 1
         return counts
+
+    # SOW Data operations
+    def save_sow_data(self, sow_data: SOWExtractedData) -> SOWExtractedData:
+        self._sow_data[sow_data.id] = sow_data
+        return sow_data
+
+    def get_sow_data(self, sow_data_id: str) -> Optional[SOWExtractedData]:
+        return self._sow_data.get(sow_data_id)
+
+    def get_sow_data_by_document(self, document_id: str) -> Optional[SOWExtractedData]:
+        for sow_data in self._sow_data.values():
+            if sow_data.document_id == document_id:
+                return sow_data
+        return None
+
+    def get_sow_data_by_analysis(self, analysis_id: str) -> Optional[SOWExtractedData]:
+        for sow_data in self._sow_data.values():
+            if sow_data.analysis_id == analysis_id:
+                return sow_data
+        return None
+
+    def list_sow_data(self) -> list[SOWExtractedData]:
+        return sorted(
+            self._sow_data.values(),
+            key=lambda s: s.extracted_at,
+            reverse=True
+        )
+
+    def update_sow_data(self, sow_data_id: str, **updates) -> Optional[SOWExtractedData]:
+        sow_data = self.get_sow_data(sow_data_id)
+        if sow_data:
+            from datetime import datetime
+            for key, value in updates.items():
+                if value is not None and hasattr(sow_data, key):
+                    setattr(sow_data, key, value)
+            sow_data.updated_at = datetime.utcnow()
+            self._sow_data[sow_data_id] = sow_data
+            return sow_data
+        return None
+
+    def delete_sow_data(self, sow_data_id: str) -> bool:
+        if sow_data_id in self._sow_data:
+            del self._sow_data[sow_data_id]
+            return True
+        return False
+
+    # Dashboard summary
+    def get_dashboard_summary(self) -> dict:
+        sow_data_list = list(self._sow_data.values())
+        tasks = list(self._tasks.values())
+        issues = list(self._issues.values())
+
+        total_budget = sum(s.total_budget or 0 for s in sow_data_list)
+        total_spent = sum(s.spent_to_date or 0 for s in sow_data_list)
+        all_employees = []
+        all_milestones = []
+        all_phases = []
+
+        for sow_data in sow_data_list:
+            all_employees.extend(sow_data.employees)
+            all_milestones.extend(sow_data.milestones)
+            all_phases.extend(sow_data.phases)
+
+        return {
+            "total_projects": len(sow_data_list),
+            "total_budget": total_budget,
+            "total_spent": total_spent,
+            "budget_remaining": total_budget - total_spent,
+            "total_employees": len(all_employees),
+            "total_milestones": len(all_milestones),
+            "milestones_completed": len([m for m in all_milestones if m.status == "completed"]),
+            "total_tasks": len(tasks),
+            "tasks_completed": len([t for t in tasks if t.status.value == "completed"]),
+            "total_issues": len(issues),
+            "critical_issues": len([i for i in issues if i.risk_level == "critical"]),
+            "employees": [e.model_dump() for e in all_employees[:10]],
+            "recent_milestones": [m.model_dump() for m in all_milestones[:5]],
+            "phases": [p.model_dump() for p in all_phases],
+        }
 
 
 @lru_cache

@@ -33,7 +33,7 @@ export function Sidebar() {
       <div className="flex h-16 items-center border-b px-6">
         <Link href="/dashboard" className="flex items-center gap-2">
           <FileText className="h-6 w-6 text-blue-600" />
-          <span className="text-lg font-semibold">SOW Analyzer</span>
+          <span className="text-lg font-semibold">DeepSOW</span>
         </Link>
       </div>
       <nav className="flex-1 space-y-1 px-3 py-4">

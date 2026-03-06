@@ -42,13 +42,24 @@ export function ProcessingStatus({ analysisId, onComplete }: ProcessingStatusPro
   }
 
   if (error || !status) {
+    const errorMessage = error instanceof Error ? error.message : 'Failed to load analysis status';
+    const isConnectionError = errorMessage.toLowerCase().includes('connection');
+
     return (
       <Card>
         <CardContent className="flex flex-col items-center justify-center py-12">
           <XCircle className="h-12 w-12 text-red-500" />
           <p className="mt-4 text-lg font-medium text-red-600">
-            Failed to load analysis status
+            {isConnectionError ? 'Connection Error' : 'Analysis Failed'}
           </p>
+          <p className="mt-2 text-sm text-gray-500 text-center max-w-md">
+            {errorMessage}
+          </p>
+          {isConnectionError && (
+            <p className="mt-2 text-xs text-gray-400 text-center">
+              Make sure the backend server is running: cd backend && uvicorn main:app --reload
+            </p>
+          )}
         </CardContent>
       </Card>
     );

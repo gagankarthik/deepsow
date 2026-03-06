@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional
 from openai import OpenAI
 
@@ -12,6 +12,13 @@ from ..models.analysis import (
     AbuseCategory,
 )
 from ..models.issue import Issue, IssueCreate
+from ..models.sow_data import (
+    SOWExtractedData,
+    Employee,
+    Milestone,
+    ProjectPhase,
+    BudgetItem,
+)
 from .storage import get_storage
 
 
@@ -178,6 +185,24 @@ class OpenAIAnalyzer:
                 )
                 self.storage.save_issue(issue)
 
+            # Extract comprehensive SOW data
+            analysis.progress = 95
+            analysis.current_step = "Extracting project details"
+            self.storage.save_analysis(analysis)
+
+            try:
+                sow_data = self.extract_sow_data(
+                    document_id=analysis.document_id,
+                    document_text=document_text,
+                    vendor_name=vendor_name,
+                    contract_value=contract_value,
+                )
+                sow_data.analysis_id = analysis.id
+                self.storage.save_sow_data(sow_data)
+            except Exception as e:
+                # SOW extraction is non-critical, continue even if it fails
+                pass
+
             # Mark as completed
             analysis.status = AnalysisStatus.COMPLETED
             analysis.completed_at = datetime.utcnow()
@@ -237,3 +262,207 @@ Provide a JSON response with:
         )
 
         return json.loads(response.choices[0].message.content)
+
+    def extract_sow_data(
+        self,
+        document_id: str,
+        document_text: str,
+        vendor_name: str,
+        contract_value: float,
+    ) -> SOWExtractedData:
+        """Extract comprehensive SOW data from document."""
+        extraction_prompt = f"""Extract structured data from this SOW document. Return a JSON object with the following structure:
+
+{{
+    "project_name": "Name of the project",
+    "project_description": "Brief description of the project",
+    "start_date": "YYYY-MM-DD or null",
+    "end_date": "YYYY-MM-DD or null",
+    "total_budget": number or null,
+    "spent_to_date": number or null (estimate if mentioned),
+    "employees": [
+        {{
+            "name": "Person's name",
+            "role": "Job title/role",
+            "qualification": "Education, certifications, experience",
+            "rate": hourly/daily rate if mentioned or null,
+            "hours_allocated": estimated hours or null,
+            "department": "Department if mentioned"
+        }}
+    ],
+    "milestones": [
+        {{
+            "name": "Milestone name",
+            "description": "Brief description",
+            "due_date": "YYYY-MM-DD or null",
+            "progress": 0-100 (estimate based on context),
+            "status": "pending/in_progress/completed/delayed",
+            "deliverables": ["list of deliverables"]
+        }}
+    ],
+    "phases": [
+        {{
+            "name": "Phase name",
+            "start_date": "YYYY-MM-DD or null",
+            "end_date": "YYYY-MM-DD or null",
+            "progress": 0-100,
+            "budget": allocated budget or null,
+            "spent": spent amount or null
+        }}
+    ],
+    "budget_items": [
+        {{
+            "category": "Category name (Labor, Equipment, Travel, etc.)",
+            "description": "Description",
+            "planned_amount": number,
+            "actual_amount": number or 0
+        }}
+    ],
+    "tasks": [
+        {{
+            "title": "Task name",
+            "description": "Task description",
+            "assigned_to": "Person name or null",
+            "status": "not_started/in_progress/completed",
+            "priority": "low/medium/high/critical",
+            "start_date": "YYYY-MM-DD or null",
+            "end_date": "YYYY-MM-DD or null",
+            "progress": 0-100
+        }}
+    ],
+    "overall_progress": 0-100 (estimate overall project progress)
+}}
+
+Document Content:
+{document_text[:40000]}
+
+Vendor: {vendor_name}
+Contract Value: ${contract_value:,.2f}
+
+Extract as much information as possible. For missing data, use reasonable estimates or null. For employees, look for team members, staff, resources mentioned. For milestones, look for deliverables, deadlines, phases. Return valid JSON only."""
+
+        response = self.client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert at extracting structured data from SOW documents. Extract all relevant project information including team members, milestones, phases, budgets, and tasks. Be thorough and accurate.",
+                },
+                {"role": "user", "content": extraction_prompt},
+            ],
+            temperature=0.2,
+            max_tokens=4000,
+            response_format={"type": "json_object"},
+        )
+
+        result = json.loads(response.choices[0].message.content)
+
+        # Parse dates helper
+        def parse_date(date_str):
+            if not date_str:
+                return None
+            try:
+                return datetime.strptime(date_str, "%Y-%m-%d").date()
+            except:
+                return None
+
+        # Create employees
+        employees = []
+        for emp_data in result.get("employees", []):
+            try:
+                employees.append(Employee(
+                    name=emp_data.get("name", "Unknown"),
+                    role=emp_data.get("role", "Team Member"),
+                    qualification=emp_data.get("qualification"),
+                    rate=emp_data.get("rate"),
+                    hours_allocated=emp_data.get("hours_allocated"),
+                    department=emp_data.get("department"),
+                ))
+            except:
+                continue
+
+        # Create milestones
+        milestones = []
+        for ms_data in result.get("milestones", []):
+            try:
+                milestones.append(Milestone(
+                    name=ms_data.get("name", "Milestone"),
+                    description=ms_data.get("description"),
+                    due_date=parse_date(ms_data.get("due_date")),
+                    progress=ms_data.get("progress", 0),
+                    status=ms_data.get("status", "pending"),
+                    deliverables=ms_data.get("deliverables", []),
+                ))
+            except:
+                continue
+
+        # Create phases
+        phases = []
+        for phase_data in result.get("phases", []):
+            try:
+                phases.append(ProjectPhase(
+                    name=phase_data.get("name", "Phase"),
+                    start_date=parse_date(phase_data.get("start_date")),
+                    end_date=parse_date(phase_data.get("end_date")),
+                    progress=phase_data.get("progress", 0),
+                    budget=phase_data.get("budget"),
+                    spent=phase_data.get("spent"),
+                ))
+            except:
+                continue
+
+        # Create budget items
+        budget_items = []
+        for bi_data in result.get("budget_items", []):
+            try:
+                budget_items.append(BudgetItem(
+                    category=bi_data.get("category", "General"),
+                    description=bi_data.get("description"),
+                    planned_amount=bi_data.get("planned_amount", 0),
+                    actual_amount=bi_data.get("actual_amount", 0),
+                    variance=bi_data.get("planned_amount", 0) - bi_data.get("actual_amount", 0),
+                ))
+            except:
+                continue
+
+        # Calculate duration
+        start_date = parse_date(result.get("start_date"))
+        end_date = parse_date(result.get("end_date"))
+        duration_days = None
+        if start_date and end_date:
+            duration_days = (end_date - start_date).days
+
+        # Calculate total FTE and labor cost
+        total_fte = len(employees) if employees else None
+        labor_cost = sum(
+            (e.rate or 0) * (e.hours_allocated or 0)
+            for e in employees
+        ) or None
+
+        # Calculate remaining budget
+        total_budget = result.get("total_budget") or contract_value
+        spent_to_date = result.get("spent_to_date") or 0
+        remaining_budget = (total_budget - spent_to_date) if total_budget else None
+
+        sow_data = SOWExtractedData(
+            document_id=document_id,
+            project_name=result.get("project_name") or vendor_name,
+            project_description=result.get("project_description"),
+            start_date=start_date,
+            end_date=end_date,
+            duration_days=duration_days,
+            total_budget=total_budget,
+            spent_to_date=spent_to_date,
+            remaining_budget=remaining_budget,
+            budget_items=budget_items,
+            employees=employees,
+            total_fte=total_fte,
+            labor_cost=labor_cost,
+            milestones=milestones,
+            phases=phases,
+            tasks=result.get("tasks", []),
+            overall_progress=result.get("overall_progress", 0),
+        )
+
+        self.storage.save_sow_data(sow_data)
+        return sow_data

@@ -99,15 +99,6 @@ export function IssueDetailModal({ issue, open, onClose }: IssueDetailModalProps
                   {categoryConfig?.label || issue.category}
                 </Badge>
               </div>
-
-              {issue.estimated_savings && (
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">Est. Savings</p>
-                  <span className="font-medium text-green-600">
-                    ${issue.estimated_savings.toLocaleString()}
-                  </span>
-                </div>
-              )}
             </div>
 
             <Separator />

@@ -4,7 +4,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { GripVertical, MessageSquare, DollarSign } from 'lucide-react';
+import { GripVertical, MessageSquare } from 'lucide-react';
 import { RISK_LEVELS, ABUSE_CATEGORIES } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import type { Issue } from '@/types';
@@ -70,22 +70,14 @@ export function IssueCard({ issue, onClick }: IssueCardProps) {
           </Badge>
         </div>
 
-        <div className="flex items-center justify-between text-xs text-gray-500">
-          <div className="flex items-center gap-2">
-            {issue.comments.length > 0 && (
-              <span className="flex items-center gap-1">
-                <MessageSquare className="h-3 w-3" />
-                {issue.comments.length}
-              </span>
-            )}
-            {issue.estimated_savings && (
-              <span className="flex items-center gap-1 text-green-600">
-                <DollarSign className="h-3 w-3" />
-                {(issue.estimated_savings / 1000).toFixed(0)}k
-              </span>
-            )}
+        {issue.comments.length > 0 && (
+          <div className="flex items-center text-xs text-gray-500">
+            <span className="flex items-center gap-1">
+              <MessageSquare className="h-3 w-3" />
+              {issue.comments.length}
+            </span>
           </div>
-        </div>
+        )}
       </CardContent>
     </Card>
   );

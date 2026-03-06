@@ -8,6 +8,7 @@ from app.routers import (
     issues_router,
     comparison_router,
     tasks_router,
+    dashboard_router,
 )
 
 # Create uploads directory
@@ -37,6 +38,7 @@ app.include_router(analysis_router, prefix="/api/v1")
 app.include_router(issues_router, prefix="/api/v1")
 app.include_router(comparison_router, prefix="/api/v1")
 app.include_router(tasks_router, prefix="/api/v1")
+app.include_router(dashboard_router, prefix="/api/v1")
 
 
 @app.get("/")

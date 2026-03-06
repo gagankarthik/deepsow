@@ -93,7 +93,10 @@ async def get_analysis_status(
     """Get the status of an analysis."""
     analysis = storage.get_analysis(analysis_id)
     if not analysis:
-        raise HTTPException(status_code=404, detail="Analysis not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Analysis not found. The server may have been restarted. Please upload and analyze the document again."
+        )
 
     return AnalysisResponse(
         id=analysis.id,

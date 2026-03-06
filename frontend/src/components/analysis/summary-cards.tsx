@@ -1,7 +1,7 @@
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { AlertTriangle, DollarSign, Shield, FileSearch } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Shield, FileSearch } from 'lucide-react';
 import type { AnalysisResults } from '@/types';
 
 interface SummaryCardsProps {
@@ -12,6 +12,8 @@ export function SummaryCards({ results }: SummaryCardsProps) {
   const totalIssues = results.findings.length;
   const criticalCount = results.risk_breakdown['critical'] || 0;
   const highCount = results.risk_breakdown['high'] || 0;
+  const mediumCount = results.risk_breakdown['medium'] || 0;
+  const lowCount = results.risk_breakdown['low'] || 0;
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -64,17 +66,17 @@ export function SummaryCards({ results }: SummaryCardsProps) {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-sm font-medium text-gray-600">
-            Est. Savings
+            Low/Medium
           </CardTitle>
-          <DollarSign className="h-4 w-4 text-green-400" />
+          <CheckCircle2 className="h-4 w-4 text-green-400" />
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold text-green-600">
-            {results.total_estimated_savings
-              ? `$${results.total_estimated_savings.toLocaleString()}`
-              : 'N/A'}
+            {lowCount + mediumCount}
           </div>
-          <p className="text-xs text-gray-500">potential cost savings</p>
+          <p className="text-xs text-gray-500">
+            {lowCount} low, {mediumCount} medium
+          </p>
         </CardContent>
       </Card>
     </div>

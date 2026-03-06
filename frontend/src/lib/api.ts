@@ -25,34 +25,48 @@ async function fetchApi<T>(
     }
   }
 
-  const response = await fetch(url, {
-    ...fetchOptions,
-    headers: {
-      'Content-Type': 'application/json',
-      ...fetchOptions.headers,
-    },
-  });
+  try {
+    const response = await fetch(url, {
+      ...fetchOptions,
+      headers: {
+        'Content-Type': 'application/json',
+        ...fetchOptions.headers,
+      },
+    });
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: 'An error occurred' }));
-    throw new Error(error.detail || `HTTP error! status: ${response.status}`);
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'An error occurred' }));
+      throw new Error(error.detail || `HTTP error! status: ${response.status}`);
+    }
+
+    return response.json();
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error('Connection error. Please ensure the backend server is running on http://localhost:8000');
+    }
+    throw error;
   }
-
-  return response.json();
 }
 
 // Document API
 export const documentsApi = {
   upload: async (formData: FormData) => {
-    const response = await fetch(`${API_BASE_URL}/documents/upload`, {
-      method: 'POST',
-      body: formData,
-    });
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: 'Upload failed' }));
-      throw new Error(error.detail);
+    try {
+      const response = await fetch(`${API_BASE_URL}/documents/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: 'Upload failed' }));
+        throw new Error(error.detail);
+      }
+      return response.json();
+    } catch (error) {
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error('Connection error. Please start the backend server:\n\ncd backend && uvicorn main:app --reload');
+      }
+      throw error;
     }
-    return response.json();
   },
 
   list: () => fetchApi<Document[]>('/documents'),
@@ -359,3 +373,147 @@ interface TaskGanttView {
   color: string | null;
   assigned_to: string | null;
 }
+
+// SOW Data Types
+interface Employee {
+  id: string;
+  name: string;
+  role: string;
+  qualification: string | null;
+  rate: number | null;
+  hours_allocated: number | null;
+  department: string | null;
+}
+
+interface Milestone {
+  id: string;
+  name: string;
+  description: string | null;
+  due_date: string | null;
+  progress: number;
+  status: string;
+  deliverables: string[];
+}
+
+interface ProjectPhase {
+  id: string;
+  name: string;
+  start_date: string | null;
+  end_date: string | null;
+  progress: number;
+  budget: number | null;
+  spent: number | null;
+}
+
+interface BudgetItem {
+  id: string;
+  category: string;
+  description: string | null;
+  planned_amount: number;
+  actual_amount: number;
+  variance: number;
+}
+
+interface SOWData {
+  id: string;
+  document_id: string;
+  project_name: string | null;
+  project_description: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  duration_days: number | null;
+  total_budget: number | null;
+  spent_to_date: number | null;
+  remaining_budget: number | null;
+  budget_items: BudgetItem[];
+  employees: Employee[];
+  total_fte: number | null;
+  labor_cost: number | null;
+  milestones: Milestone[];
+  phases: ProjectPhase[];
+  tasks: SOWTask[];
+  overall_progress: number;
+}
+
+interface SOWTask {
+  title: string;
+  description: string;
+  assigned_to: string | null;
+  status: string;
+  priority: string;
+  start_date: string | null;
+  end_date: string | null;
+  progress: number;
+}
+
+interface DashboardSummary {
+  total_projects: number;
+  total_budget: number;
+  total_spent: number;
+  budget_remaining: number;
+  total_employees: number;
+  total_milestones: number;
+  milestones_completed: number;
+  total_tasks: number;
+  tasks_completed: number;
+  total_issues: number;
+  critical_issues: number;
+  employees: Employee[];
+  recent_milestones: Milestone[];
+  phases: ProjectPhase[];
+}
+
+// Dashboard API
+export const dashboardApi = {
+  getSummary: () => fetchApi<DashboardSummary>('/dashboard/summary'),
+
+  listSOWData: () => fetchApi<SOWData[]>('/dashboard/sow-data'),
+
+  getSOWData: (id: string) => fetchApi<SOWData>(`/dashboard/sow-data/${id}`),
+
+  getSOWDataByDocument: (documentId: string) =>
+    fetchApi<SOWData>(`/dashboard/sow-data/by-document/${documentId}`),
+
+  getSOWDataByAnalysis: (analysisId: string) =>
+    fetchApi<SOWData>(`/dashboard/sow-data/by-analysis/${analysisId}`),
+
+  updateSOWData: (id: string, data: Partial<SOWData>) =>
+    fetchApi<SOWData>(`/dashboard/sow-data/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  updateEmployee: (sowDataId: string, employeeId: string, data: Partial<Employee>) =>
+    fetchApi(`/dashboard/sow-data/${sowDataId}/employee/${employeeId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  updateMilestone: (sowDataId: string, milestoneId: string, data: Partial<Milestone>) =>
+    fetchApi(`/dashboard/sow-data/${sowDataId}/milestone/${milestoneId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  addEmployee: (sowDataId: string, employee: Partial<Employee>) =>
+    fetchApi(`/dashboard/sow-data/${sowDataId}/employee`, {
+      method: 'POST',
+      body: JSON.stringify(employee),
+    }),
+
+  addMilestone: (sowDataId: string, milestone: Partial<Milestone>) =>
+    fetchApi(`/dashboard/sow-data/${sowDataId}/milestone`, {
+      method: 'POST',
+      body: JSON.stringify(milestone),
+    }),
+
+  deleteEmployee: (sowDataId: string, employeeId: string) =>
+    fetchApi(`/dashboard/sow-data/${sowDataId}/employee/${employeeId}`, {
+      method: 'DELETE',
+    }),
+
+  deleteMilestone: (sowDataId: string, milestoneId: string) =>
+    fetchApi(`/dashboard/sow-data/${sowDataId}/milestone/${milestoneId}`, {
+      method: 'DELETE',
+    }),
+};

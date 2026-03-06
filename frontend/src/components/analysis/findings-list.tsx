@@ -86,17 +86,6 @@ export function FindingsList({ findings }: FindingsListProps) {
                         <p className="text-sm">{finding.recommendation}</p>
                       </div>
 
-                      {finding.estimated_savings && (
-                        <div>
-                          <p className="text-sm font-medium text-gray-500">
-                            Estimated Savings
-                          </p>
-                          <p className="text-sm font-medium text-green-600">
-                            ${finding.estimated_savings.toLocaleString()}
-                          </p>
-                        </div>
-                      )}
-
                       {finding.page_reference && (
                         <div>
                           <p className="text-sm font-medium text-gray-500">

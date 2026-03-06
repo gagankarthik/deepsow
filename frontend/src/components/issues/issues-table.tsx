@@ -127,28 +127,6 @@ export function IssuesTable({ issues, onSelectIssue }: IssuesTableProps) {
       },
     },
     {
-      accessorKey: 'estimated_savings',
-      header: ({ column }) => (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-        >
-          Est. Savings
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      ),
-      cell: ({ row }) => {
-        const savings = row.getValue('estimated_savings') as number | null;
-        return savings ? (
-          <span className="font-medium text-green-600">
-            ${savings.toLocaleString()}
-          </span>
-        ) : (
-          <span className="text-gray-400">-</span>
-        );
-      },
-    },
-    {
       accessorKey: 'created_at',
       header: ({ column }) => (
         <Button
